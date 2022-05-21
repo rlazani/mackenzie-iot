@@ -1,0 +1,126 @@
+
+// Código desenvolvido na Arduino IDE
+
+
+// ---  WIFI ---
+#include <ESP8266WiFi.h>
+const char* ssid = "redeCasa";
+const char* password = "2022@net";
+WiFiClient nodemcuClient;
+
+// --- MQTT ---
+
+#include <PubSubClient.h>
+const char* mqtt_Broker = "broker.mqttdashboard.com"; 
+const char* mqtt_ClientID = "rlazani";
+PubSubClient client(nodemcuClient);
+const char* topicoTemperatura = "rlazani/temperatura";
+
+// --- DHT ---
+#include <DHT.h>
+#define DHTPIN D3
+#define DHTTYPE DHT22 // selecionar o tipo de sensor DHT
+DHT dht(DHTPIN, DHTTYPE);
+float temperatura;
+
+// --- DISPLAY ---
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#define OLED_RESET LED_BUILTIN
+Adafruit_SSD1306 display(OLED_RESET);
+
+// --- SETUP ---
+void setup() {
+  dht.begin();
+  Serial.begin(115200);
+  configurarDisplay();
+  setup_wifi();
+  client.setServer(mqtt_Broker, 1883);
+}
+
+// --- LOOP ---
+void loop() {
+  if (!client.connected()) {
+    reconectarMQTT();
+  }
+  medirTemperatura();
+  mostrarTemperatura();
+  publicarTemperaturaNoTopico();
+}
+
+
+// --- FUNÇÕES ---
+
+void reconectarMQTT() {
+  while (!client.connected()) {
+    client.connect(mqtt_ClientID);
+  }
+}
+
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  randomSeed(micros());
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void conectarWifi() {
+  delay(10);
+  Serial.print("Conecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+}
+
+void  configurarDisplay() {
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.setTextColor(WHITE);
+  display.clearDisplay();
+}
+
+void medirTemperatura() {
+  temperatura = dht.readTemperature(false);
+  Serial.print("Temperatura: ");
+  Serial.println(temperatura);
+  delay(5000);
+}
+
+void mostrarTemperatura () {
+  mostrarMensagemNoDisplay(temperatura);
+}
+
+void mostrarMensagemNoDisplay (float medicao) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0,0);
+  display.print(medicao);
+  display.display();
+  delay(3000);
+}
+
+// --- PUBLICA (MQTT) TEMPERATURA  ---
+void publicarTemperaturaNoTopico() {
+  client.publish(topicoTemperatura, String(temperatura).c_str(), true);
+}
+
